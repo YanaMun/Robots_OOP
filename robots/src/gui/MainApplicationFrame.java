@@ -3,16 +3,11 @@ package gui;
 import java.awt.Dimension;
 import java.awt.Toolkit;
 import java.awt.event.KeyEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.awt.event.WindowListener;
 
-import javax.swing.JDesktopPane;
-import javax.swing.JFrame;
-import javax.swing.JInternalFrame;
-import javax.swing.JMenu;
-import javax.swing.JMenuBar;
-import javax.swing.JMenuItem;
-import javax.swing.SwingUtilities;
-import javax.swing.UIManager;
-import javax.swing.UnsupportedLookAndFeelException;
+import javax.swing.*;
 
 import log.Logger;
 
@@ -25,7 +20,18 @@ import log.Logger;
 public class MainApplicationFrame extends JFrame
 {
     private final JDesktopPane desktopPane = new JDesktopPane();
-    
+
+    private void confirmExit() {
+        int result = JOptionPane.showConfirmDialog(this,
+                "Вы действительно хотите выйти?",
+                "Подтверждение выхода",
+                JOptionPane.YES_NO_OPTION);
+        if (result == JOptionPane.YES_OPTION) {
+            dispose();
+            System.exit(0);
+        }
+    }
+
     public MainApplicationFrame() {
         //Make the big window be indented 50 pixels from each edge
         //of the screen.
@@ -46,7 +52,13 @@ public class MainApplicationFrame extends JFrame
         addWindow(gameWindow);
 
         setJMenuBar(generateMenuBar());
-        setDefaultCloseOperation(EXIT_ON_CLOSE);
+        setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e){
+                confirmExit();
+            }
+        });
     }
     
     protected LogWindow createLogWindow()
@@ -68,12 +80,12 @@ public class MainApplicationFrame extends JFrame
     
 //    protected JMenuBar createMenuBar() {
 //        JMenuBar menuBar = new JMenuBar();
-// 
+//
 //        //Set up the lone menu.
 //        JMenu menu = new JMenu("Document");
 //        menu.setMnemonic(KeyEvent.VK_D);
 //        menuBar.add(menu);
-// 
+//
 //        //Set up the first menu item.
 //        JMenuItem menuItem = new JMenuItem("New");
 //        menuItem.setMnemonic(KeyEvent.VK_N);
@@ -82,7 +94,7 @@ public class MainApplicationFrame extends JFrame
 //        menuItem.setActionCommand("new");
 ////        menuItem.addActionListener(this);
 //        menu.add(menuItem);
-// 
+//
 //        //Set up the second menu item.
 //        menuItem = new JMenuItem("Quit");
 //        menuItem.setMnemonic(KeyEvent.VK_Q);
@@ -91,10 +103,48 @@ public class MainApplicationFrame extends JFrame
 //        menuItem.setActionCommand("quit");
 ////        menuItem.addActionListener(this);
 //        menu.add(menuItem);
-// 
+//
 //        return menuBar;
 //    }
-    
+
+    private void addSystemLookAndFeel(JMenu lookAndFeelMenu)
+    {
+            JMenuItem systemLookAndFeel = new JMenuItem("Системная схема", KeyEvent.VK_S);
+            systemLookAndFeel.addActionListener((event) -> {
+                setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+                this.invalidate();
+            });
+            lookAndFeelMenu.add(systemLookAndFeel);
+    }
+
+    private void addCrossplatformLookAndFeel(JMenu lookAndFeelMenu)
+    {
+            JMenuItem crossplatformLookAndFeel = new JMenuItem("Универсальная схема", KeyEvent.VK_S);
+            crossplatformLookAndFeel.addActionListener((event) -> {
+                setLookAndFeel(UIManager.getCrossPlatformLookAndFeelClassName());
+                this.invalidate();
+            });
+            lookAndFeelMenu.add(crossplatformLookAndFeel);
+    }
+
+    private void addLogMessageItem(JMenu testMenu)
+    {
+        JMenuItem addLogMessageItem = new JMenuItem("Сообщение в лог", KeyEvent.VK_S);
+        addLogMessageItem.addActionListener((event) -> {
+            Logger.debug("Новая строка");
+        });
+        testMenu.add(addLogMessageItem);
+    }
+
+    private void addExitLookAndFeel(JMenu exitMenu)
+    {
+        JMenuItem addLogMessageItem = new JMenuItem("Завершение работы программы", KeyEvent.VK_S);
+        addLogMessageItem.addActionListener((event) -> {
+            confirmExit();
+        });
+        exitMenu.add(addLogMessageItem);
+    }
+
     private JMenuBar generateMenuBar()
     {
         JMenuBar menuBar = new JMenuBar();
@@ -103,40 +153,28 @@ public class MainApplicationFrame extends JFrame
         lookAndFeelMenu.setMnemonic(KeyEvent.VK_V);
         lookAndFeelMenu.getAccessibleContext().setAccessibleDescription(
                 "Управление режимом отображения приложения");
-        
-        {
-            JMenuItem systemLookAndFeel = new JMenuItem("Системная схема", KeyEvent.VK_S);
-            systemLookAndFeel.addActionListener((event) -> {
-                setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-                this.invalidate();
-            });
-            lookAndFeelMenu.add(systemLookAndFeel);
-        }
 
-        {
-            JMenuItem crossplatformLookAndFeel = new JMenuItem("Универсальная схема", KeyEvent.VK_S);
-            crossplatformLookAndFeel.addActionListener((event) -> {
-                setLookAndFeel(UIManager.getCrossPlatformLookAndFeelClassName());
-                this.invalidate();
-            });
-            lookAndFeelMenu.add(crossplatformLookAndFeel);
-        }
+        addSystemLookAndFeel(lookAndFeelMenu);
+
+        addCrossplatformLookAndFeel(lookAndFeelMenu);
 
         JMenu testMenu = new JMenu("Тесты");
         testMenu.setMnemonic(KeyEvent.VK_T);
         testMenu.getAccessibleContext().setAccessibleDescription(
                 "Тестовые команды");
-        
-        {
-            JMenuItem addLogMessageItem = new JMenuItem("Сообщение в лог", KeyEvent.VK_S);
-            addLogMessageItem.addActionListener((event) -> {
-                Logger.debug("Новая строка");
-            });
-            testMenu.add(addLogMessageItem);
-        }
+
+        addLogMessageItem(testMenu);
+
+        JMenu exitMenu = new JMenu("Выход");
+        exitMenu.setMnemonic(KeyEvent.VK_T);
+        exitMenu.getAccessibleContext().setAccessibleDescription(
+                "Меню выхода");
+
+        addExitLookAndFeel(exitMenu);
 
         menuBar.add(lookAndFeelMenu);
         menuBar.add(testMenu);
+        menuBar.add(exitMenu);
         return menuBar;
     }
     
