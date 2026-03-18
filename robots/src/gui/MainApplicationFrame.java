@@ -5,6 +5,12 @@ import java.awt.Toolkit;
 import java.awt.event.KeyEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.beans.PropertyVetoException;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.Properties;
 
 import javax.swing.JDesktopPane;
 import javax.swing.JFrame;
@@ -19,19 +25,18 @@ import javax.swing.UnsupportedLookAndFeelException;
 
 import log.Logger;
 
-/**
- * Что требуется сделать:
- * 1. Метод создания меню перегружен функционалом и трудно читается.
- * Следует разделить его на серию более простых методов (или вообще выделить отдельный класс).
- *
- */
-
 public class MainApplicationFrame extends JFrame {
     private final JDesktopPane desktopPane = new JDesktopPane();
 
+    private final File configFile;
+    private final Properties properties;
+
     public MainApplicationFrame() {
-        //Make the big window be indented 50 pixels from each edge
-        // of the screen.
+        String home = System.getProperty("user.home");
+        this.configFile = new File(home, "my_app_config.properties");
+        this.properties = new Properties();
+
+
         int inset = 50;
         Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
         setBounds(inset, inset,
@@ -45,11 +50,13 @@ public class MainApplicationFrame extends JFrame {
 
         GameWindow gameWindow = new GameWindow();
         gameWindow.setSize(400, 400);
+        gameWindow.putClientProperty("window_id", "game_window");
         addWindow(gameWindow);
 
         setJMenuBar(generateMenuBar());
 
-        // Событие закрытия окна (перехват для подтверждения выхода)
+        loadWindowSettings();
+
         setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
         addWindowListener(new WindowAdapter() {
             @Override
@@ -63,6 +70,9 @@ public class MainApplicationFrame extends JFrame {
         LogWindow logWindow = new LogWindow(Logger.getDefaultLogSource());
         logWindow.setLocation(10, 10);
         logWindow.setSize(300, 800);
+
+        logWindow.putClientProperty("window_id", "log_window");
+
         setMinimumSize(logWindow.getSize());
         logWindow.pack();
         Logger.debug("Протокол работает");
@@ -74,13 +84,116 @@ public class MainApplicationFrame extends JFrame {
         frame.setVisible(true);
     }
 
+
+    private void loadWindowSettings() {
+
+        if (!configFile.exists()) {
+            Logger.debug("Файл конфигурации не найден, используем настройки по умолчанию");
+            return;
+        }
+
+        try (FileInputStream fis = new FileInputStream(configFile)) {
+            properties.load(fis);
+            Logger.debug("Настройки загружены из: " + configFile.getAbsolutePath());
+        } catch (IOException e) {
+            Logger.error("Ошибка при загрузке настроек: " + e.getMessage());
+            return;
+        }
+
+
+        for (JInternalFrame frame : desktopPane.getAllFrames()) {
+            String id = (String) frame.getClientProperty("window_id");
+            if (id != null) {
+                restoreInternalFrame(frame, id);
+                Logger.debug("Восстановлено окно: " + id);
+            }
+        }
+    }
+
+    private void saveWindowSettings() {
+        for (JInternalFrame frame : desktopPane.getAllFrames()) {
+            String id = (String) frame.getClientProperty("window_id");
+            if (id != null) {
+                saveInternalFrame(frame, id);
+                Logger.debug("Сохранено окно: " + id);
+            }
+        }
+
+        try (FileOutputStream fos = new FileOutputStream(configFile)) {
+            properties.store(fos, "Internal Frames Configuration");
+            Logger.debug("Настройки сохранены в: " + configFile.getAbsolutePath());
+        } catch (IOException e) {
+            Logger.error("Ошибка при сохранении настроек: " + e.getMessage());
+        }
+    }
+
+    private void saveInternalFrame(JInternalFrame frame, String id) {
+        if (frame == null) return;
+
+        properties.setProperty(id + ".x", String.valueOf(frame.getX()));
+        properties.setProperty(id + ".y", String.valueOf(frame.getY()));
+        properties.setProperty(id + ".width", String.valueOf(frame.getWidth()));
+        properties.setProperty(id + ".height", String.valueOf(frame.getHeight()));
+        properties.setProperty(id + ".is_maximum", String.valueOf(frame.isMaximum()));
+        properties.setProperty(id + ".is_icon", String.valueOf(frame.isIcon()));
+        properties.setProperty(id + ".is_closed", String.valueOf(frame.isClosed()));
+    }
+
+
+    private void restoreInternalFrame(JInternalFrame frame, String id) {
+        if (frame == null) return;
+
+
+        int x = Integer.parseInt(properties.getProperty(id + ".x", "10"));
+        int y = Integer.parseInt(properties.getProperty(id + ".y", "10"));
+        int w = Integer.parseInt(properties.getProperty(id + ".width", "400"));
+        int h = Integer.parseInt(properties.getProperty(id + ".height", "300"));
+        boolean isMaximum = Boolean.parseBoolean(properties.getProperty(id + ".is_maximum", "false"));
+        boolean isIcon = Boolean.parseBoolean(properties.getProperty(id + ".is_icon", "false"));
+        boolean isClosed = Boolean.parseBoolean(properties.getProperty(id + ".is_closed", "false"));
+
+        if (isClosed) {
+            return;
+        }
+
+
+        if (frame.isMaximum()) {
+            try {
+                frame.setMaximum(false);
+            } catch (PropertyVetoException ignored) {
+            }
+        }
+        if (frame.isIcon()) {
+            try {
+                frame.setIcon(false);
+            } catch (PropertyVetoException ignored) {
+            }
+        }
+
+
+        frame.setBounds(x, y, w, h);
+
+
+        if (isMaximum) {
+            try {
+                frame.setMaximum(true);
+            } catch (PropertyVetoException ignored) {
+            }
+        }
+        if (isIcon) {
+            try {
+                frame.setIcon(true);
+            } catch (PropertyVetoException ignored) {
+            }
+        }
+    }
+
+
     private JMenuBar generateMenuBar() {
         JMenuBar menuBar = new JMenuBar();
-
         menuBar.add(createFileMenu());
         menuBar.add(createLookAndFeelMenu());
         menuBar.add(createTestMenu());
-
         return menuBar;
     }
 
@@ -135,7 +248,6 @@ public class MainApplicationFrame extends JFrame {
         return testMenu;
     }
 
-    //Обработка выхода из приложения
     private void exitApplication() {
         Object[] options = {"Да", "Нет"};
 
@@ -151,6 +263,9 @@ public class MainApplicationFrame extends JFrame {
         );
 
         if (result == JOptionPane.YES_OPTION) {
+
+            saveWindowSettings();
+
             Logger.debug("Приложение завершает работу");
             System.exit(0);
         }
